@@ -73,6 +73,10 @@ class GameController {
     return game.trick.passTurn(player);
   }
 
+  getGame(gameCode) {
+    return this.games[gameCode];
+  }
+
   getGameState(gameId) {
     return this.games[gameId].toJSON();
   }

@@ -44,8 +44,9 @@ class Player {
 
   toJSON() {
     return {
+      id: this.id,
       name: this.name,
-      hand: this.hand.map((card) => ({ rank: card.rank, suit: card.suit })),
+      hand: this.hand.map(card => ({ rank: card.rank, suit: card.suit })),
     };
   }
 }

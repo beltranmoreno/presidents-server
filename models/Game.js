@@ -17,6 +17,9 @@ class Game {
     ];
     this.numTricks = 0;
     this.trick = null; // Initialize the trick as null
+    this.playAgainVotes = {}; // Track players who want to play again
+    this.leaderboard = {}; // Track cumulative positions
+    this.finishedPlayers = [];
   }
 
   setup(numPlayers) {
@@ -68,7 +71,92 @@ class Game {
       player.sortHand();
     }
 
-    this.trick = new Trick(this.players);
+    this.trick = new Trick(this.players, this);
+  }
+
+  handleGameEnd() {
+    // Assign final titles
+    this.assignFinalTitles();
+
+    // Update leaderboard
+    this.updateLeaderboard();
+
+    // Optionally, reset the trick or set it to null
+    // this.trick = null;
+
+    // Notify players, if needed
+  }
+
+  handlePlayerFinished(player) {
+    // Assign a title based on the order of finishing
+    const position = this.finishedPlayers.length + 1;
+    let title = "";
+
+    switch (position) {
+      case 1:
+        title = "President";
+        break;
+      case 2:
+        title = "Vice President";
+        break;
+      default:
+        title = ""; // Assign other titles later
+        break;
+    }
+
+    const finishedPlayer = {
+      id: player.id,
+      name: player.name,
+      title,
+      position,
+    };
+
+    this.finishedPlayers.push(finishedPlayer);
+
+    // Remove player from activePlayers in Trick
+    this.trick.removeActivePlayer(player);
+
+    // Check if game has ended
+    if (this.trick.activePlayers.length === 0) {
+      this.handleGameEnd();
+    }
+
+    return finishedPlayer;
+  }
+
+  assignFinalTitles() {
+    const totalPlayers = this.players.length;
+    const positionsAssigned = this.finishedPlayers.length;
+
+    // Assign titles to the last players
+    this.finishedPlayers.forEach((player, index) => {
+      if (index === positionsAssigned - 2) {
+        player.title = "Vice Scum";
+      } else if (index === positionsAssigned - 1) {
+        player.title = "Scum";
+      } else if (!player.title) {
+        player.title = "Neutral";
+      }
+    });
+  }
+
+  updateLeaderboard() {
+    this.finishedPlayers.forEach((player) => {
+      if (!this.leaderboard[player.id]) {
+        this.leaderboard[player.id] = {
+          name: player.name,
+          positions: [],
+        };
+      }
+      this.leaderboard[player.id].positions.push(player.title);
+    });
+  }
+
+  resetGame() {
+    // Reset game-specific properties while keeping players and leaderboard
+    this.trick = null;
+    this.playAgainVotes = {};
+    this.finishedPlayers = [];
   }
 
   toJSON() {
@@ -93,6 +181,11 @@ class Game {
             .flat()
             .map((card) => ({ rank: card.rank, suit: card.suit }))
         : [],
+      activePlayers:
+        this.trick && this.trick.activePlayers
+          ? this.trick.activePlayers.map((player) => player.toJSON())
+          : [],
+      finishedPlayers: this.finishedPlayers,
     };
   }
 }
