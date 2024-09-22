@@ -33,6 +33,7 @@ io.on("connection", (socket) => {
       const gameCode = crypto.randomBytes(3).toString("hex").toUpperCase();
       GameController.createGame(gameCode, numPlayers);
       GameController.addPlayerToGame(gameCode, socket.id, name);
+      const playerId = socket.id;
 
       // Join the Socket.IO room for this game
       socket.join(gameCode);
@@ -40,7 +41,7 @@ io.on("connection", (socket) => {
       console.log(`${name} created and joined game ${gameCode}`);
 
       // Send the game code back to the client
-      callback({ gameCode });
+      callback({ gameCode, playerId });
 
       // Broadcast the updated game state
       const gameState = GameController.getGameState(gameCode);
@@ -62,13 +63,14 @@ io.on("connection", (socket) => {
 
     try {
       GameController.addPlayerToGame(gameCode, socket.id, name);
+      const playerId = socket.id;
 
       // Join the Socket.IO room for this game
       socket.join(gameCode);
 
       console.log(`${name} joined game ${gameCode}`);
 
-      callback({ success: true });
+      callback({ success: true, playerId });
 
       // Broadcast the updated game state
       const gameState = GameController.getGameState(gameCode);

@@ -1,4 +1,5 @@
 // controllers/gameController.js
+const BotPlayer = require("../models/BotPlayer");
 const Game = require("../models/Game");
 const Player = require("../models/Player");
 
@@ -33,9 +34,23 @@ class GameController {
     const player = new Player(playerId, playerName);
     game.addPlayer(player);
 
+    // Add bots if necessary
+    if (game.players.length == 3) {
+      this.addBotsToGame(game);
+    }
+
     // Start the game if enough players have joined
     if (game.players.length === game.numPlayers) {
       game.start();
+    }
+
+  }
+
+  addBotsToGame(game) {
+    const botsNeeded = game.numPlayers - game.players.length;
+    for (let i = 0; i < botsNeeded; i++) {
+      const bot = new BotPlayer(`bot-${i}`, `Bot ${i + 1}`);
+      game.addPlayer(bot);
     }
   }
 

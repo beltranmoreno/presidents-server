@@ -34,7 +34,31 @@ class Trick {
         );
         // Skip this player's turn
       } else {
-        break; // Found the next active player
+        // If the current player is a bot, make them play automatically
+        if (currentPlayer.isBot) {
+          console.log('Is bot');
+          setTimeout(() => {
+            // Bot makes a move automatically
+            const move = currentPlayer.makeMove(this);
+
+            // Handle the bot's move based on its decision
+            if (move.action === "play") {
+              console.log('Bot play');
+              // Play the selected cards
+              const result = this.playCard(currentPlayer, move.indices);
+              if (result.action === "error") {
+                console.error(result.message); // Handle bot errors gracefully
+                this.advanceTurn(); // Skip bot's turn if invalid move occurs
+              }
+            } else if (move.action === "pass") {
+              console.log('Bot passed');
+              // Handle passing the turn
+              this.passTurn(currentPlayer);
+            }
+          }, 1000); // Optional delay to simulate bot thinking time
+        } else {
+          break; // Found the next active human player
+        }
       }
     } while (true);
   }
@@ -50,6 +74,16 @@ class Trick {
         action: "error",
         message: "You cannot play two consecutive turns.",
       };
+    }
+
+    if (player.isBot) {
+      // Bot makes a move automatically
+      const move = player.makeMove(this);
+      if (move.action === "pass") {
+        return this.passTurn(player);
+      } else if (move.action === "play") {
+        return this.playCard(player, move.indices);
+      }
     }
 
     // Get the selected cards
@@ -75,10 +109,6 @@ class Trick {
     this.playedCards.push(selectedCards);
     this.passCount = 0;
 
-    // Update lastPlayedCards and lastPlayedPlayer
-    this.lastPlayedCards = selectedCards;
-    this.lastPlayedPlayer = player;
-
     // Initialize variables for skipped and finished players
     let skippedPlayer = null;
     let finishedPlayer = null;
@@ -95,6 +125,10 @@ class Trick {
         this.advanceTurn();
       }
     }
+
+    // Update lastPlayedCards and lastPlayedPlayer
+    this.lastPlayedCards = selectedCards;
+    this.lastPlayedPlayer = player;
 
     // Check if the game has ended
     if (this.activePlayers.length === 0) {
@@ -193,59 +227,59 @@ class Trick {
 
   validateMove(selectedCards) {
     // Rule 1: Player must play at least one card
-    // if (selectedCards.length === 0) {
-    //   console.error("You must select at least one card to play.");
-    //   return {
-    //     valid: false,
-    //     message: "You must select at least one card to play.",
-    //   };
-    // }
+    if (selectedCards.length === 0) {
+      console.error("You must select at least one card to play.");
+      return {
+        valid: false,
+        message: "You must select at least one card to play.",
+      };
+    }
 
-    // // Rule 2: All cards must have the same rank if playing multiple cards
-    // const firstCardRank = selectedCards[0].rank;
-    // const allSameRank = selectedCards.every(
-    //   (card) => card.rank === firstCardRank
-    // );
+    // Rule 2: All cards must have the same rank if playing multiple cards
+    const firstCardRank = selectedCards[0].rank;
+    const allSameRank = selectedCards.every(
+      (card) => card.rank === firstCardRank
+    );
 
-    // if (!allSameRank) {
-    //   console.error("All cards played must have the same rank.");
+    if (!allSameRank) {
+      console.error("All cards played must have the same rank.");
 
-    //   return {
-    //     valid: false,
-    //     message: "All cards played must have the same rank.",
-    //   };
-    // }
+      return {
+        valid: false,
+        message: "All cards played must have the same rank.",
+      };
+    }
 
-    // // Rule 3: If it's the first play of the trick
-    // if (!this.lastPlayedCards || this.lastPlayedCards.length === 0) {
-    //   // Set the number of cards to play for this trick
-    //   this.cardsToPlay = selectedCards.length;
-    // } else {
-    //   // Rule 4: Must play the same number of cards as the previous play
-    //   if (selectedCards.length !== this.cardsToPlay) {
-    //     console.error(`You must play ${this.cardsToPlay} card(s).`);
+    // Rule 3: If it's the first play of the trick
+    if (!this.lastPlayedCards || this.lastPlayedCards.length === 0) {
+      // Set the number of cards to play for this trick
+      this.cardsToPlay = selectedCards.length;
+    } else {
+      // Rule 4: Must play the same number of cards as the previous play
+      if (selectedCards.length !== this.cardsToPlay) {
+        console.error(`You must play ${this.cardsToPlay} card(s).`);
 
-    //     return {
-    //       valid: false,
-    //       message: `You must play ${this.cardsToPlay} card(s).`,
-    //     };
-    //   }
+        return {
+          valid: false,
+          message: `You must play ${this.cardsToPlay} card(s).`,
+        };
+      }
 
-    //   // Rule 5: The played cards must be of higher rank than the last played cards
-    //   const lastRankValue = this.getRankValue(this.lastPlayedCards[0].rank);
-    //   console.log("Last rank value", lastRankValue);
-    //   const currentRankValue = this.getRankValue(selectedCards[0].rank);
-    //   console.log("Current rank value", currentRankValue);
+      // Rule 5: The played cards must be of higher rank than the last played cards
+      const lastRankValue = this.getRankValue(this.lastPlayedCards[0].rank);
+      console.log("Last rank value", lastRankValue);
+      const currentRankValue = this.getRankValue(selectedCards[0].rank);
+      console.log("Current rank value", currentRankValue);
 
-    //   if (currentRankValue < lastRankValue) {
-    //     console.error("You must play a higher rank than the previous play.");
-    //     return {
-    //       valid: false,
-    //       message:
-    //         "You must play the same or higher rank than the previous play.",
-    //     };
-    //   }
-    // }
+      if (currentRankValue < lastRankValue) {
+        console.error("You must play a higher rank than the previous play.");
+        return {
+          valid: false,
+          message:
+            "You must play the same or higher rank than the previous play.",
+        };
+      }
+    }
 
     return { valid: true };
   }
