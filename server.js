@@ -10,7 +10,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://presidents-client-next.vercel.app",
+    ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
   },
@@ -18,7 +21,10 @@ const io = new Server(server, {
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://presidents-client-next.vercel.app",
+    ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
   })
@@ -152,38 +158,37 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on('playAgain', ({ gameCode }, callback = () => {}) => {
+  socket.on("playAgain", ({ gameCode }, callback = () => {}) => {
     try {
       const game = GameController.getGame(gameCode);
       if (!game) {
-        callback({ error: 'Game not found.' });
+        callback({ error: "Game not found." });
         return;
       }
-  
+
       game.playAgainVotes[socket.id] = true;
-  
+
       // Check if all players have voted to play again
       if (Object.keys(game.playAgainVotes).length === game.players.length) {
         // Reset the game
         game.resetGame();
-  
+
         // Start a new game
         game.start();
-  
+
         // Notify all clients
         const gameState = GameController.getGameState(gameCode);
-        console.log('Game State: ', gameState);
-        io.to(gameCode).emit('gameState', gameState);
-        io.to(gameCode).emit('gameRestarted');
+        console.log("Game State: ", gameState);
+        io.to(gameCode).emit("gameState", gameState);
+        io.to(gameCode).emit("gameRestarted");
       }
-  
+
       callback({ success: true });
     } catch (error) {
       console.error(error.message);
       callback({ error: error.message });
     }
   });
-  
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
