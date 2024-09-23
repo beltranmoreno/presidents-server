@@ -34,10 +34,10 @@ class GameController {
     const player = new Player(playerId, playerName);
     game.addPlayer(player);
 
-    // Add bots if necessary
-    if (game.players.length == 3) {
-      this.addBotsToGame(game);
-    }
+    // // Add bots if necessary
+    // if (game.players.length == 3) {
+    //   this.addBotsToGame(game);
+    // }
 
     // Start the game if enough players have joined
     if (game.players.length === game.numPlayers) {
