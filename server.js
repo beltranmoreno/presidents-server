@@ -35,11 +35,11 @@ app.use(express.static("public"));
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
-  socket.on("createGame", ({ name, numPlayers }, callback) => {
+  socket.on("createGame", ({ name, numPlayers, numBots }, callback) => {
     try {
       // Generate a 6-digit game code
       const gameCode = crypto.randomBytes(3).toString("hex").toUpperCase();
-      GameController.createGame(gameCode, numPlayers);
+      GameController.createGame(gameCode, numPlayers, numBots);
       GameController.addPlayerToGame(gameCode, socket.id, name);
       const playerId = socket.id;
 
@@ -189,6 +189,28 @@ io.on("connection", (socket) => {
       callback({ error: error.message });
     }
   });
+
+  // Server-side handler for player reconnecting
+  socket.on("reconnectPlayer", ({ playerId, gameCode }, callback) => {
+    console.log('Attempting to reconnect');
+    const game = GameController.getGame(gameCode);
+    if (!game) {
+      callback({ error: "Game not found." });
+      return;
+    }
+  
+    const player = game.players.find((p) => p.id === playerId);
+    console.log('Player', player);
+    if (!player) {
+      callback({ error: "Player not found in the game." });
+      return;
+    }
+  
+    // Reassign the socket ID to the reconnected player
+    player.socketId = socket.id;
+    callback({ success: true });
+  });
+
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);

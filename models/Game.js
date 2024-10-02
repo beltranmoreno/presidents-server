@@ -45,7 +45,7 @@ class Game {
             cards.map((card) => card.to_dict())
           )
         : [], // Safely access playedCards
-      currentPlayer: this.trick ? this.trick.get_current_player().name : null, // Safely access current player
+      currentPlayer: this.trick ? this.trick.get_current_player().id : null, // Safely access current player
     };
     return gameState;
   }
@@ -171,7 +171,7 @@ class Game {
           : [],
       currentPlayer:
         this.trick && this.trick.getCurrentPlayer()
-          ? this.trick.getCurrentPlayer().name
+          ? this.trick.getCurrentPlayer()
           : null,
       gameStarted: this.trick !== null,
       numPlayersConnected: this.players.length,

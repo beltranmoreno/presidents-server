@@ -8,10 +8,15 @@ class GameController {
     this.games = {}; // Store games by gameId
   }
 
-  createGame(gameId, numPlayers) {
+  createGame(gameId, numPlayers, numBots = 0) {
     const game = new Game();
     game.numPlayers = numPlayers;
     this.games[gameId] = game;
+    
+    // Add bots immediately if requested
+    if (numBots > 0) {
+      this.addBotsToGame(game, numBots);
+    }
     return game;
   }
 
@@ -34,20 +39,14 @@ class GameController {
     const player = new Player(playerId, playerName);
     game.addPlayer(player);
 
-    // // Add bots if necessary
-    // if (game.players.length == 3) {
-    //   this.addBotsToGame(game);
-    // }
-
     // Start the game if enough players have joined
     if (game.players.length === game.numPlayers) {
       game.start();
     }
-
   }
 
-  addBotsToGame(game) {
-    const botsNeeded = game.numPlayers - game.players.length;
+  addBotsToGame(game, numBots) {
+    const botsNeeded = numBots;
     for (let i = 0; i < botsNeeded; i++) {
       const bot = new BotPlayer(`bot-${i}`, `Bot ${i + 1}`);
       game.addPlayer(bot);
@@ -94,6 +93,23 @@ class GameController {
 
   getGameState(gameId) {
     return this.games[gameId].toJSON();
+  }
+
+  triggerBotMove(gameCode) {
+    const game = this.games[gameCode];
+    const currentPlayer = game.getCurrentPlayer();
+  
+    if (currentPlayer.isBot) {
+      const move = currentPlayer.makeMove(game.trick);
+  
+      if (move.action === "play") {
+        // The bot plays cards
+        return this.handlePlayCard(gameCode, currentPlayer.id, move.indices);
+      } else if (move.action === "pass") {
+        // The bot passes its turn
+        return this.handlePassTurn(gameCode, currentPlayer.id);
+      }
+    }
   }
 }
 

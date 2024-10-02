@@ -17,10 +17,9 @@ class BotPlayer extends Player {
       return { action: "pass" };
     } else {
       // Play the lowest set of playable cards
-      const indices = playableCards[0].map((card) =>
-        this.hand.findIndex(
-          (c) => c.rank === card.rank && c.suit === card.suit
-        )
+      const lowestPlayable = this.getLowestPlayable(playableCards);
+      const indices = lowestPlayable.map((card) =>
+        this.hand.findIndex((c) => c.rank === card.rank && c.suit === card.suit)
       );
       return { action: "play", indices };
     }
@@ -33,6 +32,10 @@ class BotPlayer extends Player {
     return this.hand
       .filter((card) => trick.validateMove([card]).valid)
       .map((card) => [card]); // Return as an array of card sets
+  }
+
+  getLowestPlayable(playableCards) {
+    return playableCards.sort((a, b) => a[0].rank - b[0].rank)[0]; // Return the lowest-ranked card
   }
 }
 
