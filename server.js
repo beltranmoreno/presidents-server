@@ -32,6 +32,78 @@ app.use(
 
 app.use(express.static("public"));
 
+/**
+ * Helper function to trigger bot moves after a game state change
+ * @param {string} gameCode - Game code
+ * @param {number} minDelay - Minimum delay before bot plays (ms)
+ * @param {number} maxDelay - Maximum delay before bot plays (ms)
+ */
+async function triggerBotIfNeeded(gameCode, minDelay = 1000, maxDelay = 2000) {
+  try {
+    const game = GameController.getGame(gameCode);
+    if (!game || !game.trick) return;
+
+    const currentPlayer = game.trick.getCurrentPlayer();
+    if (!currentPlayer) return;
+
+    if (currentPlayer.isBot) {
+      console.log(`Bot ${currentPlayer.name}'s turn - triggering move`);
+
+      // Random delay between min and max for natural feel
+      const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      // Make bot move
+      const result = await GameController.triggerBotMove(gameCode, 0); // 0 delay since we already waited
+
+      if (result.success && result.action !== "error") {
+        // Emit updated game state to all players
+        const gameState = GameController.getGameStateOrThrow(gameCode);
+        io.to(gameCode).emit("gameState", gameState);
+
+        // Handle skipped player
+        if (result.skippedPlayer) {
+          io.to(gameCode).emit("playerSkipped", {
+            message: `${result.skippedPlayer.name} has been skipped!`,
+            skippedPlayer: result.skippedPlayer,
+          });
+        }
+
+        // Handle finished player
+        if (result.finishedPlayer) {
+          io.to(gameCode).emit("playerFinished", {
+            message: `${result.finishedPlayer.name} has finished and is the ${result.finishedPlayer.title}!`,
+            finishedPlayer: result.finishedPlayer,
+          });
+        }
+
+        // Handle last player (loser) auto-finished
+        if (result.lastFinishedPlayer) {
+          io.to(gameCode).emit("playerFinished", {
+            message: `${result.lastFinishedPlayer.name} is the last player and is the ${result.lastFinishedPlayer.title}!`,
+            finishedPlayer: result.lastFinishedPlayer,
+          });
+        }
+
+        // Handle game end
+        if (result.action === "game_end") {
+          const finalGameState = GameController.getGameStateOrThrow(gameCode);
+          io.to(gameCode).emit("gameEnd", {
+            message: "The game has ended!",
+            finishedPlayers: finalGameState.finishedPlayers,
+          });
+          return; // Don't trigger next bot if game ended
+        }
+
+        // Chain bot moves if next player is also a bot
+        await triggerBotIfNeeded(gameCode, minDelay, maxDelay);
+      }
+    }
+  } catch (error) {
+    console.error(`Error triggering bot in game ${gameCode}:`, error);
+  }
+}
+
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
@@ -52,8 +124,11 @@ io.on("connection", (socket) => {
       callback({ gameCode, playerId });
 
       // Broadcast the updated game state
-      const gameState = GameController.getGameState(gameCode);
+      const gameState = GameController.getGameStateOrThrow(gameCode);
       io.to(gameCode).emit("gameState", gameState);
+
+      // Trigger bot if it's a bot's turn
+      triggerBotIfNeeded(gameCode);
     } catch (error) {
       console.error(error.message);
       callback({ error: error.message });
@@ -81,8 +156,11 @@ io.on("connection", (socket) => {
       callback({ success: true, playerId });
 
       // Broadcast the updated game state
-      const gameState = GameController.getGameState(gameCode);
+      const gameState = GameController.getGameStateOrThrow(gameCode);
       io.to(gameCode).emit("gameState", gameState);
+
+      // Trigger bot if it's a bot's turn
+      triggerBotIfNeeded(gameCode);
     } catch (error) {
       console.error(error.message);
       callback({ error: error.message });
@@ -102,7 +180,7 @@ io.on("connection", (socket) => {
         callback({ error: result.message });
       } else {
         // Broadcast the updated game state
-        const gameState = GameController.getGameState(gameCode);
+        const gameState = GameController.getGameStateOrThrow(gameCode);
         io.to(gameCode).emit("gameState", gameState);
 
         // Check if any player was skipped
@@ -122,9 +200,17 @@ io.on("connection", (socket) => {
           });
         }
 
+        // Check if last player (loser) auto-finished
+        if (result.lastFinishedPlayer) {
+          io.to(gameCode).emit("playerFinished", {
+            message: `${result.lastFinishedPlayer.name} is the last player and is the ${result.lastFinishedPlayer.title}!`,
+            finishedPlayer: result.lastFinishedPlayer,
+          });
+        }
+
         if (result.action === "game_end") {
           // Get the final game state including finished players and their titles
-          const finalGameState = GameController.getGameState(gameCode);
+          const finalGameState = GameController.getGameStateOrThrow(gameCode);
           io.to(gameCode).emit("gameEnd", {
             message: "The game has ended!",
             finishedPlayers: finalGameState.finishedPlayers,
@@ -132,6 +218,9 @@ io.on("connection", (socket) => {
         }
 
         callback({ success: true });
+
+        // Trigger bot if it's a bot's turn
+        triggerBotIfNeeded(gameCode);
       }
     } catch (error) {
       console.error(error.message);
@@ -147,10 +236,21 @@ io.on("connection", (socket) => {
         callback({ error: result.message });
       } else {
         // Broadcast the updated game state
-        const gameState = GameController.getGameState(gameCode);
+        const gameState = GameController.getGameStateOrThrow(gameCode);
         io.to(gameCode).emit("gameState", gameState);
 
+        // Check if trick was reset (all players passed)
+        if (result.action === "trick_reset" && result.player) {
+          io.to(gameCode).emit("trickReset", {
+            message: `All players passed! ${result.player.name} wins the trick and starts the next round.`,
+            player: result.player,
+          });
+        }
+
         callback({ success: true });
+
+        // Trigger bot if it's a bot's turn
+        triggerBotIfNeeded(gameCode);
       }
     } catch (error) {
       console.error(error.message);
@@ -177,10 +277,13 @@ io.on("connection", (socket) => {
         game.start();
 
         // Notify all clients
-        const gameState = GameController.getGameState(gameCode);
+        const gameState = GameController.getGameStateOrThrow(gameCode);
         console.log("Game State: ", gameState);
         io.to(gameCode).emit("gameState", gameState);
         io.to(gameCode).emit("gameRestarted");
+
+        // Trigger bot if it's a bot's turn
+        triggerBotIfNeeded(gameCode);
       }
 
       callback({ success: true });

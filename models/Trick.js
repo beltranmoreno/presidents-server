@@ -27,38 +27,16 @@ class Trick {
       this.currentPlayerIndex =
         (this.currentPlayerIndex + 1) % this.activePlayers.length;
       const currentPlayer = this.activePlayers[this.currentPlayerIndex];
+
       // Remove player from skipped list if their turn has been skipped
       if (this.skippedPlayers.includes(currentPlayer.id)) {
         this.skippedPlayers = this.skippedPlayers.filter(
           (id) => id !== currentPlayer.id
         );
-        // Skip this player's turn
+        // Skip this player's turn and continue to next player
       } else {
-        // If the current player is a bot, make them play automatically
-        if (currentPlayer.isBot) {
-          console.log('Is bot');
-          setTimeout(() => {
-            // Bot makes a move automatically
-            const move = currentPlayer.makeMove(this);
-
-            // Handle the bot's move based on its decision
-            if (move.action === "play") {
-              console.log('Bot play');
-              // Play the selected cards
-              const result = this.playCard(currentPlayer, move.indices);
-              if (result.action === "error") {
-                console.error(result.message); // Handle bot errors gracefully
-                this.advanceTurn(); // Skip bot's turn if invalid move occurs
-              }
-            } else if (move.action === "pass") {
-              console.log('Bot passed');
-              // Handle passing the turn
-              this.passTurn(currentPlayer);
-            }
-          }, 1000); // Optional delay to simulate bot thinking time
-        } else {
-          break; // Found the next active human player
-        }
+        // Found the next active player (human or bot)
+        break;
       }
     } while (true);
   }
@@ -76,16 +54,6 @@ class Trick {
       };
     }
 
-    if (player.isBot) {
-      // Bot makes a move automatically
-      const move = player.makeMove(this);
-      if (move.action === "pass") {
-        return this.passTurn(player);
-      } else if (move.action === "play") {
-        return this.playCard(player, move.indices);
-      }
-    }
-
     // Get the selected cards
     const selectedCards = indices.map((index) => player.hand[index]);
 
@@ -94,6 +62,11 @@ class Trick {
 
     if (!isValid.valid) {
       return { action: "error", message: isValid.message };
+    }
+
+    // Set cardsToPlay if this is the first play of the trick
+    if (!this.lastPlayedCards || this.lastPlayedCards.length === 0) {
+      this.cardsToPlay = selectedCards.length;
     }
 
     // Remove selected cards from the player's hand
@@ -129,6 +102,14 @@ class Trick {
     // Update lastPlayedCards and lastPlayedPlayer
     this.lastPlayedCards = selectedCards;
     this.lastPlayedPlayer = player;
+
+    // Check if only one player remains (the loser)
+    if (this.activePlayers.length === 1) {
+      const lastPlayer = this.activePlayers[0];
+      const lastFinishedPlayer = this.game.handlePlayerFinished(lastPlayer);
+      this.game.handleGameEnd();
+      return { action: "game_end", finishedPlayer, lastFinishedPlayer };
+    }
 
     // Check if the game has ended
     if (this.activePlayers.length === 0) {
@@ -173,9 +154,12 @@ class Trick {
     // Check if the next player is the same as the last player who played
     if (this.getCurrentPlayer() === this.lastPlayedPlayer) {
       console.log("All other players have passed or been skipped, reset trick");
+      const previousLastPlayer = this.lastPlayedPlayer;
       this.lastPlayedCards = null; // Reset the last played cards
       this.cardsToPlay = null; // Reset the number of cards to play
       this.lastPlayedPlayer = null; // Reset the last played player
+
+      return { action: "trick_reset", player: previousLastPlayer };
     }
 
     return { action: "next" };
@@ -252,8 +236,8 @@ class Trick {
 
     // Rule 3: If it's the first play of the trick
     if (!this.lastPlayedCards || this.lastPlayedCards.length === 0) {
-      // Set the number of cards to play for this trick
-      this.cardsToPlay = selectedCards.length;
+      // First play is always valid (don't mutate state here - that's done in playCard)
+      return { valid: true };
     } else {
       // Rule 4: Must play the same number of cards as the previous play
       if (selectedCards.length !== this.cardsToPlay) {
